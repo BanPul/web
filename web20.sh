@@ -1,38 +1,29 @@
 #!/bin/bash
 
-set -e
-
-echo "📦 Update dan install paket..."
+# Update dan Install Paket yang Diperlukan
+echo "📦 Mengupdate dan menginstal paket..."
 sudo apt update
 sudo apt install -y apache2 dnsmasq
 
+# Nonaktifkan systemd-resolved
 echo "🛑 Nonaktifkan systemd-resolved..."
 sudo systemctl stop systemd-resolved
 sudo systemctl disable systemd-resolved
 sudo rm -f /etc/resolv.conf
-echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
 
-echo "👤 Membuat user ban dengan password 123..."
-if id "ban" &>/dev/null; then
-    echo "User 'ban' sudah ada."
-else
-    sudo useradd -m -s /bin/bash ban
-    echo 'ban:123' | sudo chpasswd
-    echo "User 'ban' berhasil dibuat."
-fi
-
-echo "🌐 Setup direktori web..."
-sudo mkdir -p /home/ban/public_html/epul.local
+# Membuat Direktori Web untuk epul.test
+echo "🌐 Membuat direktori untuk epul.test dan menambahkan file index.html..."
+sudo mkdir -p /home/ban/public_html/epul.test
 sudo chown -R ban:ban /home/ban/public_html
 
-echo "📄 Membuat file index.html..."
-cat <<EOF | sudo tee /home/ban/public_html/epul.local/index.html > /dev/null
+# Menambahkan file index.html dengan konten dasar
+cat <<EOF | sudo tee /home/ban/public_html/epul.test/index.html > /dev/null
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>epul.local - Halaman Utama</title>
+    <title>epul.test - Halaman Utama</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -51,36 +42,22 @@ cat <<EOF | sudo tee /home/ban/public_html/epul.local/index.html > /dev/null
             font-size: 20px;
             color: #f5f5f5;
         }
-        .card {
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 16px;
-            padding: 30px;
-            max-width: 600px;
-            margin: auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-        a {
-            color: #007BFF;
-            text-decoration: none;
-        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Selamat Datang di epul.local</h1>
-        <p>Website ini dikelola oleh user <strong>ban</strong>.</p>
-        <p><a href="#">Pelajari lebih lanjut</a></p>
-    </div>
+    <h1>Selamat Datang di epul.test</h1>
+    <p>Website ini dikelola oleh user <strong>ban</strong>.</p>
 </body>
 </html>
 EOF
 
-echo "🧾 Konfigurasi virtual host Apache..."
-sudo tee /etc/apache2/sites-available/epul.local.conf > /dev/null <<EOF
+# Konfigurasi VirtualHost di Apache untuk epul.test
+echo "🌐 Mengonfigurasi VirtualHost di Apache untuk epul.test..."
+sudo tee /etc/apache2/sites-available/epul.test.conf > /dev/null <<EOF
 <VirtualHost *:80>
-    ServerName epul.local
-    DocumentRoot /home/ban/public_html/epul.local
-    <Directory /home/ban/public_html/epul.local>
+    ServerName epul.test
+    DocumentRoot /home/ban/public_html/epul.test
+    <Directory /home/ban/public_html/epul.test>
         Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
@@ -90,14 +67,29 @@ sudo tee /etc/apache2/sites-available/epul.local.conf > /dev/null <<EOF
 </VirtualHost>
 EOF
 
-sudo a2ensite epul.local.conf
+# Aktifkan VirtualHost dan restart Apache
+echo "🔧 Mengaktifkan VirtualHost dan me-restart Apache..."
+sudo a2ensite epul.test.conf
 sudo systemctl reload apache2
 
-echo "🔧 Tambahkan konfigurasi dnsmasq..."
-if ! grep -q "epul.local" /etc/dnsmasq.conf; then
-    echo "address=/epul.local/192.168.20.129" | sudo tee -a /etc/dnsmasq.conf
-fi
+# Mengonfigurasi dnsmasq untuk epul.test
+echo "🔧 Mengonfigurasi dnsmasq untuk epul.test..."
+echo "address=/epul.test/192.168.20.129" | sudo tee -a /etc/dnsmasq.conf > /dev/null
+
+# Restart dnsmasq
 sudo systemctl restart dnsmasq
 
-echo "✅ Semua selesai! Coba akses http://epul.local di browser."
-echo "📌 Jangan lupa ubah DNS client menjadi: 192.168.20.129"
+# Menambahkan entri untuk epul.test di /etc/hosts
+echo "📂 Menambahkan entri untuk epul.test ke /etc/hosts..."
+echo "192.168.20.129 epul.test" | sudo tee -a /etc/hosts > /dev/null
+
+# Restart layanan DNS dan Apache untuk memastikan semuanya berjalan
+echo "🔄 Restart layanan untuk memastikan konfigurasi berjalan..."
+sudo systemctl restart systemd-resolved
+
+# Membuka port HTTP di firewall jika diperlukan
+echo "⚙️ Membuka port HTTP di firewall..."
+sudo ufw allow 80/tcp
+
+# Selesai!
+echo "✅ Konfigurasi selesai! Sekarang coba akses http://epul.test di browser."
